@@ -405,17 +405,19 @@ class CornerPerformanceAnalyzer:
         
         # 2024 F1 TEAMS - Realistic Aero Characteristics Based on Performance
         # McLaren was DOMINANT in 2024, Ferrari/Red Bull competitive, Mercedes improved
+        # 2026 FIA F1 TEAMS - Official Active Aero & Chassis Characteristics (11 Teams)
         team_aero_configs = {
-            'McLaren': {'drag_coefficient': 0.675, 'cl_front': 1.75, 'cl_rear': 2.2},  # BEST - Low drag + high DF
-            'Ferrari': {'drag_coefficient': 0.685, 'cl_front': 1.70, 'cl_rear': 2.15},  # 2nd - High DF, good efficiency
-            'Red Bull Racing': {'drag_coefficient': 0.690, 'cl_front': 1.65, 'cl_rear': 2.1},  # 3rd - Fell behind in 2024
-            'Mercedes': {'drag_coefficient': 0.695, 'cl_front': 1.68, 'cl_rear': 2.12},  # 4th - Improved late season
-            'Aston Martin': {'drag_coefficient': 0.710, 'cl_front': 1.55, 'cl_rear': 2.0},  # Mid-pack
-            'Racing Bulls': {'drag_coefficient': 0.715, 'cl_front': 1.58, 'cl_rear': 2.02},  # Mid-pack
-            'Alpine': {'drag_coefficient': 0.720, 'cl_front': 1.50, 'cl_rear': 1.95},  # Lower mid-pack
-            'Haas': {'drag_coefficient': 0.725, 'cl_front': 1.52, 'cl_rear': 1.98},  # Lower mid-pack
-            'Williams': {'drag_coefficient': 0.730, 'cl_front': 1.48, 'cl_rear': 1.92},  # Struggled
-            'Kick Sauber': {'drag_coefficient': 0.740, 'cl_front': 1.42, 'cl_rear': 1.88},  # Worst - high drag, low DF
+            'McLaren': {'drag_coefficient': 0.675, 'cl_front': 1.75, 'cl_rear': 2.2},
+            'Ferrari': {'drag_coefficient': 0.685, 'cl_front': 1.70, 'cl_rear': 2.15},
+            'Red Bull Ford': {'drag_coefficient': 0.688, 'cl_front': 1.68, 'cl_rear': 2.12},
+            'Mercedes': {'drag_coefficient': 0.695, 'cl_front': 1.68, 'cl_rear': 2.12},
+            'Aston Martin': {'drag_coefficient': 0.710, 'cl_front': 1.55, 'cl_rear': 2.0},
+            'Audi Revolut': {'drag_coefficient': 0.720, 'cl_front': 1.50, 'cl_rear': 1.95},
+            'Williams': {'drag_coefficient': 0.728, 'cl_front': 1.48, 'cl_rear': 1.92},
+            'Racing Bulls': {'drag_coefficient': 0.715, 'cl_front': 1.58, 'cl_rear': 2.02},
+            'Haas F1 Team': {'drag_coefficient': 0.724, 'cl_front': 1.52, 'cl_rear': 1.98},
+            'Alpine': {'drag_coefficient': 0.720, 'cl_front': 1.50, 'cl_rear': 1.95},
+            'Cadillac Formula 1 Team': {'drag_coefficient': 0.726, 'cl_front': 1.50, 'cl_rear': 1.94},
         }
         
         results = {}

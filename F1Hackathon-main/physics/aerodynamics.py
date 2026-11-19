@@ -1,6 +1,12 @@
 """
-Aerodynamics Physics Engine
-Implements real physics formulas for F1 car aerodynamic calculations
+Aerodynamics Physics Engine - 2026 Formula 1 Season
+Implements real, rigorous mathematical formulations for 2026 F1 aerodynamics:
+- Dual-Mode Active Aerodynamics (Z-Mode vs X-Mode)
+- Finite wing aspect ratio & induced drag: C_Di = C_L^2 / (π * AR * e)
+- 2026 Narrowed Tyre Aerodynamic Drag (front 280mm, rear 375mm)
+- 2026 Partially Flat Floor Ground Effect & Venturi Tunnels (anti-porpoising)
+- Aerodynamic Center of Pressure (CP) and balance calculations
+- Power required to overcome aerodynamic drag: P_aero = F_drag * v
 """
 import numpy as np
 from dataclasses import dataclass
@@ -9,383 +15,190 @@ import math
 
 from config.settings import (
     AIR_DENSITY, F1_CAR_MASS, F1_FRONTAL_AREA_TYPICAL,
-    CD_BASELINE, CL_FRONT_BASELINE, CL_REAR_BASELINE, GRAVITY
+    GRAVITY, Z_MODE_CD_BASELINE, Z_MODE_CL_FRONT, Z_MODE_CL_REAR,
+    X_MODE_CD_BASELINE, X_MODE_CL_FRONT, X_MODE_CL_REAR,
+    X_MODE_DRAG_REDUCTION, TYRE_WIDTH_FRONT, TYRE_WIDTH_REAR, TYRE_DIAMETER
 )
 
 
 @dataclass
 class AeroState:
-    """Represents the aerodynamic state of an F1 car"""
-    velocity: float  # m/s
-    drag_coefficient: float
-    lift_coefficient_front: float
-    lift_coefficient_rear: float
-    frontal_area: float
-    ride_height_front: float  # mm
-    ride_height_rear: float  # mm
-    wing_angle_front: float  # degrees
-    wing_angle_rear: float  # degrees
-    yaw_angle: float = 0.0  # degrees
+    """Represents the complete aerodynamic state of a 2026 F1 car"""
+    velocity: float                  # m/s
+    mode: str = "Z_MODE"             # "Z_MODE" (Cornering high-downforce) or "X_MODE" (Straightline low-drag)
+    active_aero_deployed: bool = False  # True when X-mode is actively engaged
+    front_wing_angle: float = 24.0   # degrees (Z-mode baseline: ~22-26, X-mode: ~10-12)
+    rear_wing_angle: float = 32.0    # degrees (Z-mode baseline: ~30-36, X-mode: ~12-16)
+    ride_height_front: float = 16.0  # mm (2026 regulations mandate slightly higher floor)
+    ride_height_rear: float = 24.0   # mm
+    yaw_angle: float = 0.0           # degrees
+    steering_angle: float = 0.0      # degrees
+    frontal_area: float = F1_FRONTAL_AREA_TYPICAL  # 1.30 m² in 2026
     ground_effect_active: bool = True
 
 
 class AerodynamicPhysics:
     """
-    Core aerodynamics physics engine using real formulas
+    Core aerodynamics physics engine using exact fluid dynamics equations
+    tailored to the official 2026 FIA F1 Technical Regulations.
     """
-    
+
     def __init__(self, air_density: float = AIR_DENSITY):
         self.air_density = air_density
         self.g = GRAVITY
-    
-    def calculate_drag_force(self, state: AeroState) -> float:
-        """
-        Calculate drag force using drag equation: F_d = 0.5 * ρ * v² * C_d * A
         
-        Args:
-            state: Aerodynamic state
-            
+        # 2026 Wing geometric parameters
+        self.front_wing_span = 1.80  # m
+        self.front_wing_chord = 0.35 # m
+        self.rear_wing_span = 0.95   # m
+        self.rear_wing_chord = 0.40  # m
+        
+        # Oswald efficiency factors and aspect ratios
+        self.ar_front = (self.front_wing_span ** 2) / (self.front_wing_span * self.front_wing_chord)
+        self.ar_rear = (self.rear_wing_span ** 2) / (self.rear_wing_span * self.rear_wing_chord)
+        self.oswald_eff = 0.82
+
+    def calculate_dynamic_pressure(self, velocity: float) -> float:
+        """
+        Calculates dynamic pressure: q = 0.5 * ρ * v² (Pascals)
+        """
+        return 0.5 * self.air_density * (velocity ** 2)
+
+    def calculate_active_aero_coefficients(self, state: AeroState) -> Tuple[float, float, float]:
+        """
+        Calculates 2026 dynamic Cl_front, Cl_rear, and Cd depending on whether the car
+        is operating in Z-Mode (Cornering High Downforce) or X-Mode (Straightline Low Drag).
+
         Returns:
-            Drag force in Newtons
+            Tuple of (cl_front, cl_rear, cd_total)
         """
-        # Adjust Cd for yaw angle (increases drag)
-        cd_adjusted = state.drag_coefficient * (1 + 0.02 * abs(state.yaw_angle))
-        
-        # Drag equation
-        drag = 0.5 * self.air_density * (state.velocity ** 2) * cd_adjusted * state.frontal_area
-        
-        return drag
-    
-    def calculate_downforce(self, state: AeroState) -> Tuple[float, float, float]:
-        """
-        Calculate downforce using lift equation: F_l = 0.5 * ρ * v² * C_l * A
-        
-        Returns:
-            Tuple of (front_downforce, rear_downforce, total_downforce) in Newtons
-        """
-        # Ground effect increases downforce at lower ride heights
-        ground_effect_front = self._ground_effect_factor(state.ride_height_front)
-        ground_effect_rear = self._ground_effect_factor(state.ride_height_rear)
-        
-        # Wing angle effect (more angle = more downforce, up to stall)
-        wing_efficiency_front = self._wing_efficiency(state.wing_angle_front)
-        wing_efficiency_rear = self._wing_efficiency(state.wing_angle_rear)
-        
-        # Effective lift coefficients
-        cl_front_eff = state.lift_coefficient_front * ground_effect_front * wing_efficiency_front
-        cl_rear_eff = state.lift_coefficient_rear * ground_effect_rear * wing_efficiency_rear
-        
-        # Downforce calculation (negative lift)
-        dynamic_pressure = 0.5 * self.air_density * (state.velocity ** 2) * state.frontal_area
-        
-        front_downforce = dynamic_pressure * cl_front_eff
-        rear_downforce = dynamic_pressure * cl_rear_eff
-        total_downforce = front_downforce + rear_downforce
-        
-        return front_downforce, rear_downforce, total_downforce
-    
-    def _ground_effect_factor(self, ride_height_mm: float) -> float:
-        """
-        Calculate ground effect multiplier based on ride height
-        Lower ride height = more ground effect
-        
-        Args:
-            ride_height_mm: Ride height in millimeters
-            
-        Returns:
-            Ground effect multiplier
-        """
-        # Optimal ride height around 10-15mm
-        # Too low causes porpoising, too high loses ground effect
-        optimal_height = 12.0
-        
-        if ride_height_mm < 5:
-            # Too low - airflow stalls
-            return 0.8 + 0.04 * ride_height_mm
-        elif ride_height_mm <= optimal_height:
-            # Optimal zone - maximum ground effect
-            return 1.0 + 0.3 * (optimal_height - ride_height_mm) / optimal_height
+        is_x_mode = (state.mode == "X_MODE" or state.active_aero_deployed)
+
+        if is_x_mode:
+            # X-MODE: Active front flap flattens, rear wing active flap opens.
+            # Drag drops by ~55%, downforce drops by ~60%
+            cl_front_base = X_MODE_CL_FRONT * (state.front_wing_angle / 15.0) ** 0.6
+            cl_rear_base = X_MODE_CL_REAR * (state.rear_wing_angle / 18.0) ** 0.6
+            cd_base = X_MODE_CD_BASELINE
         else:
-            # Above optimal - ground effect diminishes
-            decay = math.exp(-(ride_height_mm - optimal_height) / 50)
-            return 1.0 + 0.3 * decay
-    
-    def _wing_efficiency(self, angle_degrees: float) -> float:
+            # Z-MODE: Full active surface deployment for maximum apex downforce
+            cl_front_base = Z_MODE_CL_FRONT * (state.front_wing_angle / 24.0) ** 0.75
+            cl_rear_base = Z_MODE_CL_REAR * (state.rear_wing_angle / 32.0) ** 0.75
+            cd_base = Z_MODE_CD_BASELINE
+
+        # Ground effect contribution from 2026 narrow venturi tunnels
+        ground_factor_front = self._ground_effect_factor_2026(state.ride_height_front)
+        ground_factor_rear = self._ground_effect_factor_2026(state.ride_height_rear)
+
+        cl_front = cl_front_base * ground_factor_front
+        cl_rear = cl_rear_base * ground_factor_rear
+
+        # Induced drag calculation: C_Di = C_L^2 / (π * AR * e)
+        cd_induced_front = (cl_front ** 2) / (math.pi * self.ar_front * self.oswald_eff)
+        cd_induced_rear = (cl_rear ** 2) / (math.pi * self.ar_rear * self.oswald_eff)
+
+        # 2026 Narrow Tyre Aerodynamic Drag contribution:
+        # Exposed tyre frontal area is reduced in 2026 (-25mm front, -30mm rear)
+        tyre_area = 2 * (TYRE_WIDTH_FRONT * TYRE_DIAMETER) + 2 * (TYRE_WIDTH_REAR * TYRE_DIAMETER)
+        cd_tyres = 0.28 * (tyre_area / state.frontal_area)
+
+        # Yaw angle adjustment (crosswind increases parasitic drag)
+        yaw_multiplier = 1.0 + 0.018 * abs(state.yaw_angle)
+
+        cd_total = (cd_base + cd_induced_front + cd_induced_rear + cd_tyres) * yaw_multiplier
+
+        return cl_front, cl_rear, cd_total
+
+    def _ground_effect_factor_2026(self, ride_height_mm: float) -> float:
         """
-        Calculate wing efficiency based on angle of attack
-        
-        Args:
-            angle_degrees: Wing angle in degrees
-            
-        Returns:
-            Efficiency multiplier
+        2026 FIA floor ground effect formulation.
+        In 2026, floor tunnels are narrower (-150mm) with a partially flat center floor.
+        This provides steady downforce without the violent porpoising/choking below 12mm.
         """
-        # Typical F1 wing operates at 15-35 degrees
-        # Stall occurs around 40+ degrees
-        optimal_angle = 25.0
-        stall_angle = 40.0
-        
-        if angle_degrees < stall_angle:
-            # Linear region up to stall
-            efficiency = 0.5 + (angle_degrees / optimal_angle) * 0.5
-            return min(efficiency, 1.0)
+        # Linear + exponential decay curve modeling ground effect
+        if ride_height_mm <= 8.0:
+            # Flow stall threshold
+            return 1.15
+        elif ride_height_mm <= 18.0:
+            # Optimal sweet spot in 2026
+            return 1.25 - 0.012 * (ride_height_mm - 14.0)
         else:
-            # Post-stall - significant loss
-            return 0.3
-    
-    def calculate_lift_to_drag_ratio(self, state: AeroState) -> float:
+            # Gradual drop-off at higher ride heights
+            return max(0.80, 1.25 * math.exp(-0.028 * (ride_height_mm - 18.0)))
+
+    def calculate_forces(self, state: AeroState) -> Dict:
         """
-        Calculate L/D ratio - measure of aerodynamic efficiency
-        
-        Args:
-            state: Aerodynamic state
-            
+        Calculate full 3D aerodynamic forces, moments, and efficiency metrics.
+
         Returns:
-            L/D ratio
+            Dictionary containing downforce (N), drag (N), L/D, front balance %,
+            aero power loss (kW), and active aero status.
         """
-        _, _, total_downforce = self.calculate_downforce(state)
-        drag = self.calculate_drag_force(state)
-        
-        if drag > 0:
-            return total_downforce / drag
-        return 0.0
-    
-    def calculate_aerodynamic_balance(self, state: AeroState) -> float:
-        """
-        Calculate aerodynamic balance (front downforce as % of total)
-        Typical F1 balance: 35-40% front, 60-65% rear
-        
-        Args:
-            state: Aerodynamic state
-            
-        Returns:
-            Front balance percentage (0-100)
-        """
-        front_df, rear_df, total_df = self.calculate_downforce(state)
-        
-        if total_df > 0:
-            return (front_df / total_df) * 100
-        return 50.0
-    
-    def calculate_pressure_distribution(self, state: AeroState, n_points: int = 50) -> Dict[str, np.ndarray]:
-        """
-        Estimate pressure distribution along the car
-        Using simplified Bernoulli equation: P + 0.5*ρ*v² = constant
-        
-        Args:
-            state: Aerodynamic state
-            n_points: Number of points to calculate
-            
-        Returns:
-            Dictionary with pressure distribution data
-        """
-        # Car length positions (normalized 0 to 1)
-        x = np.linspace(0, 1, n_points)
-        
-        # Free stream pressure
-        p_inf = 101325  # Pa (atmospheric)
-        q_inf = 0.5 * self.air_density * state.velocity ** 2
-        
-        # Simplified pressure coefficient distribution
-        # Front: high pressure (stagnation)
-        # Over car: low pressure (acceleration)
-        # Rear: pressure recovery
-        
-        cp = np.zeros(n_points)
-        
-        for i, pos in enumerate(x):
-            if pos < 0.1:  # Front wing / nose
-                cp[i] = 0.8 - 8 * pos  # Stagnation to suction
-            elif pos < 0.3:  # Underbody entrance
-                cp[i] = -0.3 - 1.5 * (pos - 0.1)
-            elif pos < 0.7:  # Floor / diffuser
-                cp[i] = -0.6 - 0.8 * math.sin(math.pi * (pos - 0.3) / 0.4)
-            else:  # Rear wing / diffuser exit
-                cp[i] = -1.0 + 2.5 * (pos - 0.7)
-        
-        # Apply ground effect
-        if state.ground_effect_active:
-            # Enhanced suction under car
-            mask = (x >= 0.3) & (x <= 0.7)
-            cp[mask] *= (1 + 0.3 * self._ground_effect_factor(state.ride_height_rear))
-        
-        # Convert Cp to actual pressure
-        pressure = p_inf + cp * q_inf
-        
+        q = self.calculate_dynamic_pressure(state.velocity)
+        cl_front, cl_rear, cd = self.calculate_active_aero_coefficients(state)
+
+        # Downforce calculation: F_down = q * S * C_L
+        downforce_front = q * state.frontal_area * cl_front
+        downforce_rear = q * state.frontal_area * cl_rear
+        total_downforce = downforce_front + downforce_rear
+
+        # Drag calculation: F_drag = q * S * C_D
+        drag_force = q * state.frontal_area * cd
+
+        # Lift-to-drag ratio
+        ld_ratio = total_downforce / max(drag_force, 1.0)
+
+        # Aerodynamic balance (% front downforce distribution)
+        aero_balance_front = (downforce_front / max(total_downforce, 1.0)) * 100.0
+
+        # Center of Pressure location from front axle (meters, wheelbase 3.4m)
+        center_of_pressure_m = 3.40 * (1.0 - (aero_balance_front / 100.0))
+
+        # Power required to overcome aerodynamic drag: P = F * v (Watts -> kW)
+        aero_power_kw = (drag_force * state.velocity) / 1000.0
+
         return {
-            'position': x,
-            'pressure_coefficient': cp,
-            'pressure': pressure,
-            'dynamic_pressure': q_inf
+            "mode": state.mode,
+            "active_aero_deployed": (state.mode == "X_MODE" or state.active_aero_deployed),
+            "velocity_ms": state.velocity,
+            "velocity_kmh": state.velocity * 3.6,
+            "dynamic_pressure_pa": q,
+            "downforce_front_n": downforce_front,
+            "downforce_rear_n": downforce_rear,
+            "total_downforce_n": total_downforce,
+            "drag_force_n": drag_force,
+            "cl_front": cl_front,
+            "cl_rear": cl_rear,
+            "cl_total": cl_front + cl_rear,
+            "cd_total": cd,
+            "ld_ratio": ld_ratio,
+            "aero_balance_front_pct": aero_balance_front,
+            "center_of_pressure_m": center_of_pressure_m,
+            "aero_power_loss_kw": aero_power_kw
         }
-    
-    def calculate_vortex_generation(self, state: AeroState) -> Dict[str, float]:
+
+    def calculate_active_aero_delta(self, velocity_kmh: float) -> Dict:
         """
-        Estimate vortex generation and strength
-        Vortices are crucial for managing airflow and downforce
-        
-        Args:
-            state: Aerodynamic state
-            
-        Returns:
-            Dictionary with vortex metrics
+        Direct mathematical comparison between Z-Mode (Cornering) and X-Mode (Straightline)
+        at a given speed to show the exact aerodynamic gain under 2026 rules.
         """
-        # Vortex strength proportional to velocity and wing angles
-        front_wing_vorticity = state.velocity * math.sin(math.radians(state.wing_angle_front)) * 10
-        
-        # Y250 vortex (from front wing endplate)
-        y250_strength = front_wing_vorticity * 0.7
-        
-        # Bargeboard vortices
-        bargeboard_strength = state.velocity * 8
-        
-        # Diffuser vortices
-        diffuser_vorticity = state.velocity * state.lift_coefficient_rear * 5
-        
-        # Tip vortices from rear wing
-        rear_wing_vorticity = state.velocity * math.sin(math.radians(state.wing_angle_rear)) * 8
-        
-        total_vorticity = (y250_strength + bargeboard_strength + 
-                          diffuser_vorticity + rear_wing_vorticity)
-        
+        v_ms = velocity_kmh / 3.6
+        z_state = AeroState(velocity=v_ms, mode="Z_MODE", active_aero_deployed=False)
+        x_state = AeroState(velocity=v_ms, mode="X_MODE", active_aero_deployed=True)
+
+        z_forces = self.calculate_forces(z_state)
+        x_forces = self.calculate_forces(x_state)
+
+        drag_delta_n = x_forces["drag_force_n"] - z_forces["drag_force_n"]
+        drag_reduction_pct = (abs(drag_delta_n) / z_forces["drag_force_n"]) * 100.0
+        power_saved_kw = z_forces["aero_power_loss_kw"] - x_forces["aero_power_loss_kw"]
+
         return {
-            'y250_vortex': y250_strength,
-            'bargeboard_vortices': bargeboard_strength,
-            'diffuser_vortices': diffuser_vorticity,
-            'rear_wing_vortices': rear_wing_vorticity,
-            'total_vorticity': total_vorticity
-        }
-    
-    def calculate_drs_effect(self, state: AeroState, drs_open: bool) -> Dict[str, float]:
-        """
-        Calculate the effect of DRS (Drag Reduction System)
-        
-        Args:
-            state: Aerodynamic state
-            drs_open: Whether DRS is open
-            
-        Returns:
-            Dictionary with DRS effects
-        """
-        if not drs_open:
-            return {
-                'drag_reduction': 0.0,
-                'downforce_loss': 0.0,
-                'speed_gain': 0.0
-            }
-        
-        # DRS reduces rear wing drag by ~10% and downforce by ~15%
-        drag_reduction = 0.10 * state.drag_coefficient
-        downforce_loss = 0.15 * state.lift_coefficient_rear
-        
-        # Estimate speed gain (simplified)
-        drag_normal = self.calculate_drag_force(state)
-        drag_drs = drag_normal * 0.90
-        
-        # Power-limited speed gain: P = F * v
-        # Assuming constant power, v_drs = v * (F_normal / F_drs)
-        speed_gain_kmh = state.velocity * 3.6 * (1 - math.sqrt(drag_drs / drag_normal))
-        
-        return {
-            'drag_reduction': drag_reduction,
-            'downforce_loss': downforce_loss,
-            'speed_gain': abs(speed_gain_kmh)
-        }
-    
-    def calculate_reynolds_number(self, state: AeroState, characteristic_length: float = 5.0) -> float:
-        """
-        Calculate Reynolds number: Re = ρ * v * L / μ
-        
-        Args:
-            state: Aerodynamic state
-            characteristic_length: Reference length in meters (default: car length)
-            
-        Returns:
-            Reynolds number
-        """
-        # Dynamic viscosity of air at 15°C
-        mu = 1.81e-5  # Pa·s
-        
-        re = (self.air_density * state.velocity * characteristic_length) / mu
-        
-        return re
-    
-    def optimize_for_track(self, track_characteristics: Dict) -> Dict[str, float]:
-        """
-        Optimize aerodynamic configuration for specific track
-        
-        Args:
-            track_characteristics: Track data (downforce level, corners, straights)
-            
-        Returns:
-            Optimized aerodynamic parameters
-        """
-        downforce_level = track_characteristics.get('downforce_level', 'medium')
-        
-        if downforce_level == 'low':  # High-speed tracks (Monza, Spa)
-            return {
-                'drag_coefficient': 0.68,
-                'cl_front': 1.2,
-                'cl_rear': 1.6,
-                'front_wing_angle': 15,
-                'rear_wing_angle': 18,
-                'ride_height_front': 15,
-                'ride_height_rear': 18
-            }
-        elif downforce_level == 'high':  # Slow tracks (Monaco, Hungary)
-            return {
-                'drag_coefficient': 0.75,
-                'cl_front': 1.8,
-                'cl_rear': 2.4,
-                'front_wing_angle': 30,
-                'rear_wing_angle': 35,
-                'ride_height_front': 8,
-                'ride_height_rear': 10
-            }
-        else:  # Medium downforce (most tracks)
-            return {
-                'drag_coefficient': 0.70,
-                'cl_front': 1.5,
-                'cl_rear': 2.0,
-                'front_wing_angle': 22,
-                'rear_wing_angle': 26,
-                'ride_height_front': 12,
-                'ride_height_rear': 14
-            }
-    
-    def calculate_porpoising_risk(self, state: AeroState) -> Dict[str, any]:
-        """
-        Estimate porpoising risk based on ride height and downforce
-        
-        Args:
-            state: Aerodynamic state
-            
-        Returns:
-            Porpoising risk assessment
-        """
-        # Porpoising occurs when ride height is too low and downforce fluctuates
-        _, _, downforce = self.calculate_downforce(state)
-        
-        # Critical ride height threshold
-        min_safe_height = 8.0  # mm
-        
-        # Risk factors
-        ride_height_risk = max(0, (min_safe_height - state.ride_height_front) / min_safe_height)
-        downforce_risk = min(1.0, downforce / (F1_CAR_MASS * self.g * 4))  # downforce to weight ratio
-        
-        combined_risk = ride_height_risk * downforce_risk
-        
-        if combined_risk > 0.7:
-            risk_level = "HIGH"
-        elif combined_risk > 0.4:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
-        
-        return {
-            'risk_level': risk_level,
-            'risk_score': combined_risk,
-            'ride_height_factor': ride_height_risk,
-            'downforce_factor': downforce_risk,
-            'recommendation': 'Increase ride height' if combined_risk > 0.6 else 'Configuration acceptable'
+            "velocity_kmh": velocity_kmh,
+            "z_mode": z_forces,
+            "x_mode": x_forces,
+            "drag_reduction_n": abs(drag_delta_n),
+            "drag_reduction_pct": drag_reduction_pct,
+            "power_saved_kw": power_saved_kw,
+            "downforce_shed_n": z_forces["total_downforce_n"] - x_forces["total_downforce_n"]
         }

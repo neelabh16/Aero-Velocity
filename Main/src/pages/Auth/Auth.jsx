@@ -7,12 +7,13 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth } from './firebase';
+import { useAuth } from '../../context/AuthContext';
 import './Auth.css';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const Auth = () => {
-  const [loading, setLoading] = useState(null); // null | 'email' | 'forgot'
+  const [loading, setLoading] = useState(null); // null | 'email' | 'forgot' | 'guest'
   const [toast, setToast] = useState(null);
 
   // Email form
@@ -22,21 +23,19 @@ const Auth = () => {
 
   const isStrongPassword = useMemo(() => password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password), [password]);
 
-  // No phone/OTP in this version
-
   const navigate = useNavigate();
+  const { loginLocalUser } = useAuth();
 
   const showToast = (msg, type = 'error') => {
     setToast({ msg, type });
     window.clearTimeout(window._authToastTimer);
-    window._authToastTimer = window.setTimeout(() => setToast(null), 3000);
+    window._authToastTimer = window.setTimeout(() => setToast(null), 3500);
   };
-
-  // Google removed per request
 
   const handleEmail = async () => {
     if (!emailRegex.test(email)) return showToast('Enter a valid email.');
     if (mode === 'signup' && !isStrongPassword) return showToast('Password must have 8+ chars, a number and an uppercase letter.');
+    
     try {
       setLoading('email');
       if (mode === 'signup') {
@@ -46,13 +45,32 @@ const Auth = () => {
       }
       navigate('/dashboard');
     } catch (e) {
-      showToast(e?.message || 'Email authentication failed');
+      // If Firebase Auth is not enabled in Firebase Console, fallback to local session
+      if (
+        e?.code === 'auth/configuration-not-found' ||
+        e?.code === 'auth/operation-not-allowed' ||
+        e?.message?.includes('configuration-not-found') ||
+        e?.message?.includes('operation-not-allowed')
+      ) {
+        loginLocalUser(email);
+        showToast('Access granted! Continuing with local session.', 'success');
+        setTimeout(() => navigate('/dashboard'), 500);
+        return;
+      }
+      showToast(e?.message || 'Authentication failed');
     } finally {
       setLoading(null);
     }
   };
 
-  // Phone/OTP removed per request
+  const handleGuestAccess = () => {
+    setLoading('guest');
+    loginLocalUser(email || 'engineer@aerovelocity.f1', 'F1 Aero Engineer');
+    showToast('Welcome, F1 Engineer! Launching dashboard...', 'success');
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 400);
+  };
 
   const handleForgotPassword = async () => {
     if (!emailRegex.test(email)) return showToast('Enter your email to reset password.');
@@ -117,11 +135,30 @@ const Auth = () => {
 
               <div className="divider"><span>or</span></div>
 
-              <div className="section">
-                <h4 className="section-title">New here?</h4>
-                <button className="primary-btn" onClick={() => setMode('signup')}>
-                  Register
+              <div className="section" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button
+                  className="primary-btn"
+                  onClick={handleGuestAccess}
+                  disabled={loading === 'guest'}
+                  style={{
+                    background: 'linear-gradient(135deg, #00d4ff 0%, #0066ff 100%)',
+                    boxShadow: '0 0 20px rgba(0, 212, 255, 0.4)',
+                    color: '#000',
+                    fontWeight: 700
+                  }}
+                >
+                  {loading === 'guest' ? <span className="spinner" /> : '⚡ Continue as Guest (Instant Access)'}
                 </button>
+
+                {mode === 'signin' ? (
+                  <button className="secondary-btn" onClick={() => setMode('signup')} style={{ width: '100%', marginTop: '6px' }}>
+                    New here? Register Account
+                  </button>
+                ) : (
+                  <button className="secondary-btn" onClick={() => setMode('signin')} style={{ width: '100%', marginTop: '6px' }}>
+                    Already have an account? Sign In
+                  </button>
+                )}
               </div>
             </motion.div>
           </AnimatePresence>
@@ -136,5 +173,3 @@ const Auth = () => {
 };
 
 export default Auth;
-
-

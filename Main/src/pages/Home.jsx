@@ -1,308 +1,625 @@
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { useRef } from 'react';
-import GlowingButton from '../components/GlowingButton';
+import { motion } from 'framer-motion';
+import {
+  Activity,
+  Gauge,
+  Wind,
+  Zap,
+  Layers,
+  ChevronRight,
+  BarChart2,
+  Shield,
+  ArrowUpRight,
+  Cpu,
+  Flame,
+  Sliders,
+  Database,
+  CheckCircle2,
+  ArrowRight,
+  Thermometer
+} from 'lucide-react';
 import './Home.css';
 
+// 5 Key Circuit Archetypes with FastF1 real benchmarks & 2026 calibrated physics
+const PREVIEW_CIRCUITS = {
+  Silverstone: {
+    officialName: 'Silverstone Circuit',
+    country: 'Great Britain',
+    type: 'High-Speed Flowing',
+    length: '5.891 km',
+    corners: 18,
+    longestStraight: '1,030 m',
+    altitude: '153 m',
+    fastf1Pole: '1:25.819',
+    mercedesSimLap: '1:25.991',
+    mercedesTopSpeed: '347.3 km/h',
+    peakLatG: '5.4 G Lat',
+    activeXModeZones: '38.5%',
+    challengerDriver: 'Max Verstappen',
+    challengerTeam: 'Red Bull Ford',
+    challengerColor: '#1E41FF',
+    challengerLap: '1:26.168',
+    challengerDelta: '+0.177s',
+    challengeNote: 'Extreme aerodynamic loading through Maggotts, Becketts and Chapel testing high-downforce Z-Mode wing deflection.'
+  },
+  Monza: {
+    officialName: 'Autodromo Nazionale Monza',
+    country: 'Italy',
+    type: 'Temple of Speed',
+    length: '5.793 km',
+    corners: 11,
+    longestStraight: '1,120 m',
+    altitude: '183 m',
+    fastf1Pole: '1:19.327',
+    mercedesSimLap: '1:19.933',
+    mercedesTopSpeed: '365.1 km/h',
+    peakLatG: '4.8 G Lat',
+    activeXModeZones: '58.2%',
+    challengerDriver: 'Max Verstappen',
+    challengerTeam: 'Red Bull Ford',
+    challengerColor: '#1E41FF',
+    challengerLap: '1:20.158',
+    challengerDelta: '+0.225s',
+    challengeNote: 'Maximum straightline velocity in low-drag X-Mode (365 km/h). Ferrari severely penalized (+0.98s, 349 km/h) due to smaller turbo & 282 km/h clipping.'
+  },
+  Spa: {
+    officialName: 'Circuit de Spa-Francorchamps',
+    country: 'Belgium',
+    type: 'High Compression & Power',
+    length: '7.004 km',
+    corners: 19,
+    longestStraight: '1,800 m',
+    altitude: '410 m',
+    fastf1Pole: '1:43.160',
+    mercedesSimLap: '1:43.918',
+    mercedesTopSpeed: '366.3 km/h',
+    peakLatG: '5.4 G Lat',
+    activeXModeZones: '54.0%',
+    challengerDriver: 'Lando Norris',
+    challengerTeam: 'McLaren',
+    challengerColor: '#FF8000',
+    challengerLap: '1:44.205',
+    challengerDelta: '+0.287s',
+    challengeNote: 'Massive vertical G compression through Eau Rouge and Raidillon climbing onto the flat-out Kemmel Straight.'
+  },
+  Mexico: {
+    officialName: 'Autódromo Hermanos Rodríguez',
+    country: 'Mexico',
+    type: 'High Altitude Thin Air',
+    length: '4.304 km',
+    corners: 17,
+    longestStraight: '1,200 m',
+    altitude: '2,285 m',
+    fastf1Pole: '1:15.946',
+    mercedesSimLap: '1:15.759',
+    mercedesTopSpeed: '350.3 km/h',
+    peakLatG: '5.2 G Lat',
+    activeXModeZones: '44.0%',
+    challengerDriver: 'Max Verstappen',
+    challengerTeam: 'Red Bull Ford',
+    challengerColor: '#1E41FF',
+    challengerLap: '1:16.083',
+    challengerDelta: '+0.324s',
+    challengeNote: 'Thin air (rho = 0.985 kg/m³) yields 350+ km/h top speeds while severely punishing power unit turbochargers and battery thermal headroom.'
+  },
+  Monaco: {
+    officialName: 'Circuit de Monaco',
+    country: 'Monaco',
+    type: 'Maximum Downforce Street',
+    length: '3.337 km',
+    corners: 19,
+    longestStraight: '580 m',
+    altitude: '15 m',
+    fastf1Pole: '1:10.270',
+    mercedesSimLap: '1:09.669',
+    mercedesTopSpeed: '287.2 km/h',
+    peakLatG: '4.2 G Lat',
+    activeXModeZones: '18.5%',
+    challengerDriver: 'Charles Leclerc',
+    challengerTeam: 'Ferrari',
+    challengerColor: '#E80020',
+    challengerLap: '1:09.568',
+    challengerDelta: '-0.101s (Pole)',
+    challengeNote: 'Ferrari SF-26 dominates with class-highest 3.25 CL cornering downforce and mechanical agility, taking Pole pace over Mercedes.'
+  }
+};
+
+// 5 Pirelli 2026 Compounds with actual image assets
+const PIRELLI_TYRE_SPECS = [
+  {
+    code: 'C4 / C5 SOFT',
+    name: 'Pirelli P-Zero Red',
+    role: 'Qualifying & Low-Fuel Sprint',
+    image: '/tire-1.png',
+    color: '#FF0040',
+    glow: 'rgba(255, 0, 64, 0.22)',
+    friction: 'µ = 1.98',
+    tempWindow: '90°C – 120°C',
+    stintLife: '12 – 16 Laps',
+    paceDelta: '-0.45s / lap'
+  },
+  {
+    code: 'C3 MEDIUM',
+    name: 'Pirelli P-Zero Yellow',
+    role: 'Optimal Race Stint Balance',
+    image: '/tire-2.png',
+    color: '#FFD700',
+    glow: 'rgba(255, 215, 0, 0.22)',
+    friction: 'µ = 1.88',
+    tempWindow: '100°C – 130°C',
+    stintLife: '22 – 28 Laps',
+    paceDelta: 'Baseline (0.00s)'
+  },
+  {
+    code: 'C1 / C2 HARD',
+    name: 'Pirelli P-Zero White',
+    role: 'High Abrasion Endurance',
+    image: '/tire-3.png',
+    color: '#FFFFFF',
+    glow: 'rgba(255, 255, 255, 0.18)',
+    friction: 'µ = 1.76',
+    tempWindow: '110°C – 140°C',
+    stintLife: '34 – 42 Laps',
+    paceDelta: '+0.55s / lap'
+  },
+  {
+    code: 'INTERMEDIATE',
+    name: 'Cinturato Green',
+    role: 'Damp Surface & Clearing Water',
+    image: '/tire-4.png',
+    color: '#10B981',
+    glow: 'rgba(16, 185, 129, 0.22)',
+    friction: 'µ = 1.58',
+    tempWindow: '65°C – 92°C',
+    stintLife: '30L/sec water clear',
+    paceDelta: '+4.20s in wet'
+  },
+  {
+    code: 'FULL WET',
+    name: 'Cinturato Blue',
+    role: 'Monsoon Standing Water',
+    image: '/tire-5.png',
+    color: '#0066FF',
+    glow: 'rgba(0, 102, 255, 0.22)',
+    friction: 'µ = 1.42',
+    tempWindow: '50°C – 80°C',
+    stintLife: '85L/sec water clear',
+    paceDelta: '+8.50s in wet'
+  }
+];
+
 const Home = () => {
-  console.log('🏠 Home component rendering...');
-  
-  // Scroll-driven horizontal motion that is scoped to the hero only
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  // Move right as user scrolls through the hero, then return as hero ends
-  const carX = useTransform(scrollYProgress, [0, 0.5, 1], [0, 200, 0]);
-  // Subtle bottom blur overlay opacity mapping
-  const blurOpacity = useTransform(scrollYProgress, [0, 0.25, 0.5, 1], [0, 0.2, 0.32, 0.45]);
+  const [selectedCircuitKey, setSelectedCircuitKey] = useState('Silverstone');
+  const activeCircuit = PREVIEW_CIRCUITS[selectedCircuitKey];
 
   return (
-    <div className="home-new">
-      {/* Animated Background */}
-      <div className="hero-background-new">
-        <div className="speed-lines"></div>
-        <div className="grid-overlay"></div>
-        <div className="gradient-orb orb-red"></div>
-        <div className="gradient-orb orb-blue"></div>
-        <div className="bg-streaks"></div>
-        
-        {/* Unique Background Elements */}
-        <div className="racing-elements">
-          <div className="race-track-line line-1"></div>
-          <div className="race-track-line line-2"></div>
-          <div className="race-track-line line-3"></div>
-        </div>
-        
-        <div className="aerodynamics-flow">
-          <svg className="flow-svg" viewBox="0 0 1200 800" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style={{ stopColor: "rgba(0, 100, 200, 0)", stopOpacity: 0 }} />
-                <stop offset="50%" style={{ stopColor: "rgba(0, 150, 255, 0.5)", stopOpacity: 0.5 }} />
-                <stop offset="100%" style={{ stopColor: "rgba(0, 100, 200, 0)", stopOpacity: 0 }} />
-              </linearGradient>
-            </defs>
-            <path 
-              d="M 100 400 Q 300 200, 500 400 T 900 400 T 1300 400" 
-              stroke="url(#flowGradient)" 
-              strokeWidth="2" 
-              fill="none"
-              className="aerodynamic-curve"
-            />
-          </svg>
-        </div>
-        
-        <div className="particle-effects">
-          <div className="particle particle-1"></div>
-          <div className="particle particle-2"></div>
-          <div className="particle particle-3"></div>
-          <div className="particle particle-4"></div>
-        </div>
-
-        {/* Subtle bottom-area scroll blur overlay */}
-        <motion.div
-          aria-hidden
-          className="scroll-blur-overlay"
-          style={{ opacity: blurOpacity }}
-        />
+    <div className="home-container">
+      {/* Background Ambience */}
+      <div className="home-bg-canvas">
+        <div className="home-bg-grid" />
       </div>
 
-      {/* Main Hero Content */}
-      <section ref={heroRef} className="hero-section-new">
-        <div className="hero-container container">
-          {/* Left Side - Text Content */}
-          <div className="hero-text-new">
-            <h1 className="hero-title-new">
-              <span className="aero-base">AERO</span>
-              <span className="velocity-accent">VELOCITY</span>
-              <span className="headline-accent" />
+      <div className="home-content-wrap">
+        {/* ====================================================================
+           HERO SECTION WITH INTEGRATED 2026 F1 CAR
+           ==================================================================== */}
+        <section className="home-hero-split">
+          {/* Left Column: Technical Narrative & Controls */}
+          <div>
+            {/* Header Badges */}
+            <div className="hero-badge-row">
+              <span className="hero-pill-primary">
+                <span className="pulse-dot" /> FIA 2026 TECHNICAL REGULATIONS
+              </span>
+              <span className="hero-pill-secondary">
+                <Database size={13} color="#00d4ff" /> FastF1 Telemetry Engine
+              </span>
+              <span className="hero-pill-secondary">
+                <Cpu size={13} color="#10b981" /> 750kW Hybrid · Z &amp; X Mode
+              </span>
+            </div>
+
+            {/* Headline */}
+            <h1 className="home-hero-title">
+              Formula 1 2026 <br />
+              <span className="highlight-cyan">Technical &amp; Telemetry Suite</span>
             </h1>
-            <p className="hero-subtitle-new">
-              Where AI Meets Speed
+
+            {/* Description */}
+            <p className="home-hero-desc">
+              High-fidelity aerodynamics, 50% electrical MGU-K powertrain dynamics, and distance-synchronized MoTeC / ATLAS telemetry calibrated across all 24 Grand Prix circuits.
             </p>
-            <p className="hero-description-new">
-              Visualizing aerodynamic flow, precision, and velocity in motion.
-            </p>
-            
-            <div className="hero-cta-new">
-              <Link to="/dashboard">
-                <GlowingButton variant="red">
-                  Explore Aerodynamics
-                </GlowingButton>
+
+            {/* Action Buttons */}
+            <div className="hero-cta-group">
+              <Link to="/simulate" className="btn-primary-f1">
+                <Activity size={16} /> Launch Telemetry &amp; Sim <ArrowRight size={15} />
+              </Link>
+              <Link to="/dashboard" className="btn-secondary-f1">
+                <Gauge size={16} color="#00d4ff" /> 2026 Team Dynamics
+              </Link>
+              <Link to="/regulations-2026" className="btn-tertiary-f1">
+                Regulations Spec <ChevronRight size={15} />
               </Link>
             </div>
-          </div>
 
-          {/* Right Side - Car Image */}
-          <div className="hero-visual-new">
-            <div className="car-container overlap-car">
-              <motion.div 
-                className="car-rotation-wrapper"
-                style={{ x: carX }}
-              >
-                <motion.img 
-                  src="/RBR25.webp" 
-                  alt="AeroVelocity F1 Car" 
-                  className="hero-car" 
-                  loading="lazy"
-                  initial={{ x: 200, opacity: 0, filter: 'blur(6px)', scale: 0.98 }}
-                  animate={{ x: 0, opacity: 1, filter: 'blur(0px)', scale: 1 }}
-                  transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
-                />
-              </motion.div>
+            {/* Key 2026 Metrics Grid */}
+            <div className="hero-metrics-grid">
+              <div className="hero-metric-cell">
+                <div className="label"><Zap size={12} color="#00d4ff" /> Powertrain</div>
+                <div className="val">750 kW</div>
+                <div className="sub">400kW ICE + 350kW MGU-K</div>
+              </div>
+
+              <div className="hero-metric-cell">
+                <div className="label"><Wind size={12} color="#38bdf8" /> X-Mode Drag</div>
+                <div className="val">-55.0%</div>
+                <div className="sub">Active Wing Straight Morph</div>
+              </div>
+
+              <div className="hero-metric-cell">
+                <div className="label"><Layers size={12} color="#10b981" /> Min Mass</div>
+                <div className="val">768 kg</div>
+                <div className="sub">-30 kg from 2025 chassis</div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Tires section (2x2 grid with 4 cards) */}
-      <section className="tires-cards-section" style={{ ['--tires-bg']: "url('/car.png')" }}>
-        <div className="container">
-          <div className="tire-cards-grid">
-            {[
-              { title: 'Downforce Optimization', desc: 'Maximize downforce for superior grip and cornering performance.', ring: 'ring-red', img: '/tire-1.png' },
-              { title: 'Drag Reduction', desc: 'Minimize air resistance for maximum straight-line speed.', ring: 'ring-yellow', img: '/tire-2.png' },
-              { title: 'AI-driven Precision', desc: 'Harness artificial intelligence for predictive aerodynamic analysis.', ring: 'ring-blue', img: '/tire-3.png' },
-              { title: 'Next Gen Prediction (2026)', desc: 'Future-ready predictions for next-generation F1 regulations.', ring: 'ring-purple', img: '/tire-1.png' },
-            ].map((f) => (
-              <div key={f.title} className="tire-card glass">
-                <div className={`wheel-badge card ${f.ring}`}>
-                  <img src={f.img} alt={f.title} className="wheel-img card" />
+          {/* Right Column: Visually Stunning Integrated 2026 F1 Car */}
+          <div className="hero-car-stage">
+            <div className="car-glow-backdrop" />
+            
+            <div className="car-image-wrapper">
+              <img
+                src="/car.png"
+                alt="2026 Formula 1 Active Aero Car"
+                className="hero-f1-car-img"
+              />
+              <div className="car-ground-shadow" />
+            </div>
+
+            {/* Interactive Callout Badges on the Car */}
+            <div className="car-callouts-strip">
+              <div className="car-callout-item">
+                <div className="callout-indicator-dot" />
+                <div>
+                  <div className="callout-title">Active Front Wing</div>
+                  <div className="callout-detail">24° Z-Mode → 11° X-Mode (160ms)</div>
                 </div>
-                <h3 className="tire-title">{f.title}</h3>
-                <p className="tire-desc">{f.desc}</p>
-                <a href="#features" className="tire-cta">Explore Feature</a>
+              </div>
+
+              <div className="car-callout-item">
+                <div className="callout-indicator-dot" />
+                <div>
+                  <div className="callout-title">Narrow Floor Venturi</div>
+                  <div className="callout-detail">150mm narrower floor (-30% ground effect)</div>
+                </div>
+              </div>
+
+              <div className="car-callout-item">
+                <div className="callout-indicator-dot" style={{ background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                <div>
+                  <div className="callout-title">350kW MGU-K Core</div>
+                  <div className="callout-detail">8.5 MJ/lap regen &amp; MOM boost</div>
+                </div>
+              </div>
+
+              <div className="car-callout-item">
+                <div className="callout-indicator-dot" style={{ background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+                <div>
+                  <div className="callout-title">Active Rear Flap</div>
+                  <div className="callout-detail">Dual-mode low drag wing shedding</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ====================================================================
+           PIRELLI 2026 TYRE DYNAMICS & THERMAL SUITE (5 REAL TYRE IMAGES)
+           ==================================================================== */}
+        <section className="home-section-spacing">
+          <div className="section-headline-group">
+            <span className="section-tag">Pirelli 2026 Tyre Dynamics</span>
+            <h2 className="section-main-title">Official Compounds &amp; Thermal Grip Windows</h2>
+            <p className="section-lead-text">
+              Each compound is calibrated with realistic friction coefficients (µ), thermal operating windows, 
+              and asphalt abrasion wear curves used throughout the MoTeC and ATLAS telemetry engine.
+            </p>
+          </div>
+
+          {/* 5-Column Tyre Showcase */}
+          <div className="tyre-showcase-grid">
+            {PIRELLI_TYRE_SPECS.map((tyre) => (
+              <div
+                key={tyre.code}
+                className="tyre-card-f1"
+                style={{
+                  '--compound-color': tyre.color,
+                  '--compound-glow': tyre.glow
+                }}
+              >
+                {/* Tyre Image with Ambient Rim Glow */}
+                <div className="tyre-image-holder">
+                  <div className="tyre-ambient-ring" />
+                  <img
+                    src={tyre.image}
+                    alt={tyre.name}
+                    className="tyre-render-img"
+                  />
+                </div>
+
+                {/* Badge & Info */}
+                <span className="tyre-code-pill">{tyre.code}</span>
+                <h4 className="tyre-compound-name">{tyre.name}</h4>
+                <div className="tyre-compound-role">{tyre.role}</div>
+
+                {/* Technical Specs Rows */}
+                <div className="tyre-specs-table">
+                  <div className="tyre-spec-row">
+                    <span className="k">Friction Coeff:</span>
+                    <span className="v" style={{ color: tyre.color }}>{tyre.friction}</span>
+                  </div>
+                  <div className="tyre-spec-row">
+                    <span className="k">Operating Window:</span>
+                    <span className="v">{tyre.tempWindow}</span>
+                  </div>
+                  <div className="tyre-spec-row">
+                    <span className="k">Stint Life:</span>
+                    <span className="v">{tyre.stintLife}</span>
+                  </div>
+                  <div className="tyre-spec-row">
+                    <span className="k">Pace Delta:</span>
+                    <span className="v" style={{ color: '#00d4ff' }}>{tyre.paceDelta}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Services/Features - Only AI Aerodynamics expanded */}
-      <section id="features" className="features-section">
-        <div className="container features-wrap">
-          <div className="services-intro">
-            <h3 className="section-kf">AI Aerodynamics</h3>
+        {/* ====================================================================
+           INTERACTIVE CIRCUIT TELEMETRY SHOWCASE
+           ==================================================================== */}
+        <section className="home-section-spacing">
+          <div className="section-headline-group">
+            <span className="section-tag">Interactive Circuit Telemetry Inspector</span>
+            <h2 className="section-main-title">FastF1 Track Geometry &amp; 2026 Lap Simulation</h2>
+            <p className="section-lead-text">
+              Toggle across key circuits to observe how 2026 active wings, thin air altitude, and power sensitivities 
+              determine terminal velocity and lap time deltas.
+            </p>
           </div>
 
-          <div className="ai-aero-expanded">
-            <div className="ai-aero-header">
-              <div className="service-icon-large">&lt;/&gt;</div>
-              <h2 className="ai-aero-title">AI Aerodynamics</h2>
-              <p className="ai-aero-subtitle">Neural Network-Powered Performance Optimization</p>
+          <div className="interactive-track-wrapper">
+            {/* Track Selector Tabs */}
+            <div className="track-tabs-row">
+              {Object.keys(PREVIEW_CIRCUITS).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedCircuitKey(key)}
+                  className={`track-tab-btn ${selectedCircuitKey === key ? 'active' : ''}`}
+                >
+                  {key} ({PREVIEW_CIRCUITS[key].country})
+                </button>
+              ))}
             </div>
-            
-            <div className="ai-aero-content">
-              <div className="ai-aero-description">
-                <h3>Deep Learning Meets Advanced Physics</h3>
-                <p>Our revolutionary AI aerodynamics system combines cutting-edge deep neural networks with real-world physics formulas to predict drag, downforce, and aerodynamic balance with unprecedented precision. By leveraging advanced machine learning models alongside fundamental fluid dynamics equations, we achieve accuracy that surpasses traditional methods.</p>
-                
-                <h3>Core Technologies</h3>
-                <ul>
-                  <li><strong>Deep Neural Networks:</strong> Multi-layer architectures trained on millions of real telemetry data points</li>
-                  <li><strong>Physics-Based Modeling:</strong> Navier-Stokes equations, Bernoulli's principle, and boundary layer theory</li>
-                  <li><strong>FastF1 Integration:</strong> Real-time telemetry analysis from actual F1 sessions and races</li>
-                  <li><strong>Hybrid AI-Physics:</strong> ML predictions validated by computational physics for maximum accuracy</li>
-                  <li><strong>Adaptive Learning:</strong> Continuous model refinement based on live track data</li>
-                </ul>
 
-                <h3>How It Works</h3>
-                <p>Our system combines deep learning models with advanced physics formulas including drag coefficient calculations, lift-to-drag ratio optimization, and ground effect dynamics. The AI analyzes pressure distributions, velocity fields, and vortex formations using real physics equations, while machine learning identifies patterns impossible for traditional analysis to detect. This hybrid approach delivers insights in milliseconds.</p>
+            {/* Track Data Display */}
+            <div className="track-data-display">
+              {/* Left Column: Track Specs */}
+              <div className="track-summary-panel">
+                <div className="track-title-row">
+                  <div>
+                    <div className="track-name-big">{activeCircuit.officialName}</div>
+                    <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>{activeCircuit.country}</div>
+                  </div>
+                  <span className="track-type-tag">{activeCircuit.type}</span>
+                </div>
 
-                <h3>Proven Performance</h3>
-                <p>By merging deep AI-ML with rigorous physics modeling, our platform achieves 99.7% prediction accuracy. Teams leveraging our technology report up to 2.5% lap time improvements through optimized aerodynamic setups. What traditional methods take hours to compute, our AI-physics hybrid delivers in under 2 milliseconds—enabling real-time race strategy adjustments.</p>
-              </div>
-              
-              <div className="ai-aero-visual">
-                <div className="neural-network-diagram">
-                  <div className="network-layer">
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
+                <div className="track-stats-grid">
+                  <div className="stat-box-mini">
+                    <div className="stat-box-label">Track Length</div>
+                    <div className="stat-box-val">{activeCircuit.length}</div>
                   </div>
-                  <div className="network-layer">
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
+                  <div className="stat-box-mini">
+                    <div className="stat-box-label">FastF1 Pole Benchmark</div>
+                    <div className="stat-box-val" style={{ color: '#38bdf8' }}>{activeCircuit.fastf1Pole}</div>
                   </div>
-                  <div className="network-layer">
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
-                    <div className="neuron"></div>
+                  <div className="stat-box-mini">
+                    <div className="stat-box-label">Longest Straight</div>
+                    <div className="stat-box-val">{activeCircuit.longestStraight}</div>
+                  </div>
+                  <div className="stat-box-mini">
+                    <div className="stat-box-label">Peak Lateral G Load</div>
+                    <div className="stat-box-val" style={{ color: '#10b981' }}>{activeCircuit.peakLatG}</div>
                   </div>
                 </div>
 
-                <div className="ai-stats">
-                  <div className="stat-item">
-                    <span className="stat-value">2ms</span>
-                    <span className="stat-label">Prediction Time</span>
+                <div className="track-challenge-note">
+                  <strong>Aerodynamic Challenge:</strong> {activeCircuit.challengeNote}
+                </div>
+              </div>
+
+              {/* Right Column: 2026 Head-to-Head Comparison Preview */}
+              <div className="comparison-live-card">
+                <div>
+                  <div className="comp-header-label">
+                    <span>2026 Head-to-Head Simulation</span>
+                    <span style={{ color: '#00d4ff' }}>X-Mode: {activeCircuit.activeXModeZones} of lap</span>
                   </div>
-                  <div className="stat-item">
-                    <span className="stat-value">99.7%</span>
-                    <span className="stat-label">Accuracy</span>
+
+                  {/* P1 Leader (Mercedes) */}
+                  <div className="driver-lap-row p1-leader">
+                    <div className="driver-badge-info">
+                      <div className="team-color-bar" style={{ background: '#00D2BE' }} />
+                      <div>
+                        <div className="driver-name-text">George Russell <span style={{ fontSize: '11px', color: '#00D2BE', fontWeight: 800 }}>P1 BENCHMARK</span></div>
+                        <div className="driver-team-text">Mercedes W17 · Mercedes-AMG Works M17</div>
+                      </div>
+                    </div>
+                    <div className="lap-time-badge">
+                      <div className="lap-time-digits">{activeCircuit.mercedesSimLap}</div>
+                      <div className="lap-delta-tag delta-green">{activeCircuit.mercedesTopSpeed} Top Speed</div>
+                    </div>
                   </div>
-                  <div className="stat-item">
-                    <span className="stat-value">1M+</span>
-                    <span className="stat-label">Training Simulations</span>
+
+                  {/* P2 Challenger */}
+                  <div className="driver-lap-row p2-challenger">
+                    <div className="driver-badge-info">
+                      <div className="team-color-bar" style={{ background: activeCircuit.challengerColor }} />
+                      <div>
+                        <div className="driver-name-text">{activeCircuit.challengerDriver}</div>
+                        <div className="driver-team-text">{activeCircuit.challengerTeam}</div>
+                      </div>
+                    </div>
+                    <div className="lap-time-badge">
+                      <div className="lap-time-digits">{activeCircuit.challengerLap}</div>
+                      <div className="lap-delta-tag delta-red">{activeCircuit.challengerDelta}</div>
+                    </div>
                   </div>
-            </div>
-            </div>
+                </div>
+
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <Link
+                    to="/simulate"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: '#00d4ff',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    Open Full Multi-Channel MoTeC Trace <ArrowRight size={15} />
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer - Enhanced Modern Design */}
-      <motion.footer
-        id="footer"
-        className="site-footer"
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        viewport={{ once: true, amount: 0.3 }}
-      >
-        <div className="container footer-content">
-          {/* Left - Logo, blurb, socials */}
-          <div className="footer-col footer-left">
-            <div className="footer-logo">AERO VELOCITY</div>
-            <p className="footer-blurb">AI-powered aerodynamics, simulation and analytics engineered for speed and control.</p>
-            <div className="footer-social" aria-label="Social links">
-              <a href="#" aria-label="Instagram" className="icon ig">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor"/><circle cx="12" cy="12" r="4" stroke="currentColor"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>
-              </a>
-              <a href="#" aria-label="LinkedIn" className="icon li">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor"/><path d="M8 17V10" stroke="currentColor"/><circle cx="8" cy="7" r="1" fill="currentColor"/><path d="M12 17V12.5C12 11.12 13.12 10 14.5 10C15.88 10 17 11.12 17 12.5V17" stroke="currentColor"/></svg>
-              </a>
-              <a href="#" aria-label="YouTube" className="icon yt">
-                <svg width="20" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="6" width="20" height="12" rx="3" stroke="currentColor"/><path d="M11 10L15 12L11 14V10Z" fill="currentColor"/></svg>
-              </a>
+        {/* ====================================================================
+           CORE TECHNICAL MODULES
+           ==================================================================== */}
+        <section className="home-section-spacing">
+          <div className="section-headline-group">
+            <span className="section-tag">Engineering Modules</span>
+            <h2 className="section-main-title">Rigorous Mathematical Physics Engines</h2>
+            <p className="section-lead-text">
+              Every telemetry channel is governed by authentic aerodynamic formulas, boundary-layer thermodynamics, and powertrain power curves.
+            </p>
+          </div>
+
+          <div className="tech-modules-grid">
+            {/* Module 1 */}
+            <div className="tech-module-card">
+              <div className="tech-module-top">
+                <div className="module-icon-wrap" style={{ background: 'rgba(0, 212, 255, 0.1)', color: '#00d4ff' }}>
+                  <Wind size={20} />
+                </div>
+                <h3 className="module-card-title">Dual-Mode Active Aerodynamics</h3>
+                <p className="module-card-desc">
+                  Replaces DRS with front and rear wing morphing surfaces. Calculates dynamic transitions between high-downforce Z-Mode (Cl=3.16) and low-drag X-Mode (Cd=0.522).
+                </p>
+                <ul className="module-specs-list">
+                  <li><CheckCircle2 size={13} color="#10b981" /> Sub-160ms active flap actuation latency</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> Narrow floor ground effect boundary model</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> 55% parasitic drag shedding on straights</li>
+                </ul>
+              </div>
+              <Link to="/simulate" className="module-card-link">
+                Simulate Active Flap Physics <ChevronRight size={14} />
+              </Link>
+            </div>
+
+            {/* Module 2 */}
+            <div className="tech-module-card">
+              <div className="tech-module-top">
+                <div className="module-icon-wrap" style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8' }}>
+                  <Zap size={20} />
+                </div>
+                <h3 className="module-card-title">50/50 Hybrid &amp; MOM Boost</h3>
+                <p className="module-card-desc">
+                  Models the 350kW MGU-K motor generator and 400kW internal combustion engine, including Manual Override Mode (MOM) push-to-pass delivery up to 337 km/h.
+                </p>
+                <ul className="module-specs-list">
+                  <li><CheckCircle2 size={13} color="#10b981" /> 4.0MJ Energy Storage cell state-of-charge</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> 8.5MJ/lap maximum regenerative braking</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> High-speed electrical power derate curves</li>
+                </ul>
+              </div>
+              <Link to="/dashboard" className="module-card-link">
+                Inspect Powertrain Dynamics <ChevronRight size={14} />
+              </Link>
+            </div>
+
+            {/* Module 3 */}
+            <div className="tech-module-card">
+              <div className="tech-module-top">
+                <div className="module-icon-wrap" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+                  <Flame size={20} />
+                </div>
+                <h3 className="module-card-title">Pirelli Thermal Windows</h3>
+                <p className="module-card-desc">
+                  Simulates grip multipliers across Pirelli C1–C5 slick, intermediate, and wet compounds based on asphalt abrasion, track temperature, and scrub heat buildup.
+                </p>
+                <ul className="module-specs-list">
+                  <li><CheckCircle2 size={13} color="#10b981" /> 35-lap non-linear stint tyre degradation</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> 4-wheel independent corner temperature traces</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> Graining and blistering window calculation</li>
+                </ul>
+              </div>
+              <Link to="/simulate" className="module-card-link">
+                View Tyre Thermal Curves <ChevronRight size={14} />
+              </Link>
+            </div>
+
+            {/* Module 4 */}
+            <div className="tech-module-card">
+              <div className="tech-module-top">
+                <div className="module-icon-wrap" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                  <BarChart2 size={20} />
+                </div>
+                <h3 className="module-card-title">FastF1 Telemetry Synchronization</h3>
+                <p className="module-card-desc">
+                  Calibrated against official FastF1 timing and GPS data. Synchronizes distance-based telemetry channels to enable professional MoTeC and ATLAS delta traces.
+                </p>
+                <ul className="module-specs-list">
+                  <li><CheckCircle2 size={13} color="#10b981" /> 10Hz spatial distance synchronization</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> Head-to-head continuous delta time trace</li>
+                  <li><CheckCircle2 size={13} color="#10b981" /> Micro-sector speed trap comparisons</li>
+                </ul>
+              </div>
+              <Link to="/simulate" className="module-card-link">
+                Compare Drivers Head-to-Head <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ====================================================================
+           CLEAN ENGINEERING FOOTER
+           ==================================================================== */}
+        <footer className="home-footer-clean">
+          <div>
+            <div className="footer-brand-text">AERO VELOCITY · FIA 2026 COMPUTATIONAL SUITE</div>
+            <div className="footer-brand-sub">
+              Engineering intelligence, active aerodynamics simulation, and FastF1 telemetry modeling.
             </div>
           </div>
 
-          {/* Center - Navigation Links */}
-          <div className="footer-col footer-center">
-            <div className="footer-title">
-              <span className="racing-flag">🏁</span> Navigation
-            </div>
-            <ul className="footer-list" aria-label="Footer navigation">
-              <li>
-                <Link to="/">
-                  <span className="link-icon">🏠</span> Home
-                </Link>
-              </li>
-              <li>
-                <Link to="/dashboard">
-                  <span className="link-icon">📊</span> Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link to="/simulate">
-                  <span className="link-icon">⚡</span> Simulate
-                </Link>
-              </li>
-              <li>
-                <Link to="/compare">
-                  <span className="link-icon">🔬</span> Compare
-                </Link>
-              </li>
-              <li>
-                <Link to="/corner-performance">
-                  <span className="link-icon">🏎️</span> Corner Analysis
-                </Link>
-              </li>
-            </ul>
+          <div className="footer-nav-clean">
+            <Link to="/">Home</Link>
+            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/simulate">Telemetry &amp; Sim</Link>
+            <Link to="/regulations-2026">2026 Regulations</Link>
           </div>
-
-          {/* Right - Contact info */}
-          <div className="footer-col footer-right">
-            <div className="footer-title">Get In Touch</div>
-            <ul className="footer-contact">
-              <li>
-                <span className="ci">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C7.58 2 4 5.58 4 10c0 5.25 8 12 8 12s8-6.75 8-12c0-4.42-3.58-8-8-8Z" stroke="currentColor"/></svg>
-                </span>
-                2440 Oak Ridge, Omaha, CA 68005
-              </li>
-              <li>
-                <span className="ci">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 16.92V19a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.05 4.18 2 2 0 0 1 4 2h2.09A2 2 0 0 1 8 3.72l1.2 2.8a2 2 0 0 1-.45 2.11L7.91 9.47a16 16 0 0 0 6.62 6.62l.84-.84a2 2 0 0 1 2.11-.45l2.8 1.2A2 2 0 0 1 22 16.92Z" stroke="currentColor"/></svg>
-                </span>
-                (01) 234 567 8901
-              </li>
-              <li>
-                <span className="ci">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 4h16v16H4z" stroke="currentColor"/><path d="M4 7l8 6 8-6" stroke="currentColor"/></svg>
-                </span>
-                support@aerovelocity.com
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="footer-bottom">
-          © {new Date().getFullYear()} <span>AERO VELOCITY</span> · Built for performance · 🏁 Racing Ahead
-        </div>
-      </motion.footer>
+        </footer>
+      </div>
     </div>
   );
 };

@@ -65,7 +65,7 @@ class FastF1TelemetryLoader:
     
     def __init__(self):
         """Initialize the telemetry loader"""
-        print("🏎️  Initializing FastF1 Telemetry Loader...")
+        print("[F1]  Initializing FastF1 Telemetry Loader...")
         
     def load_session(self, track_name: str, session_type: str = 'Q'):
         """
@@ -79,23 +79,23 @@ class FastF1TelemetryLoader:
         
         # Try 2025 first
         try:
-            print(f"  📡 Attempting {self.YEAR} {circuit} {session_type} session...")
+            print(f"  [FastF1] Attempting {self.YEAR} {circuit} {session_type} session...")
             session = fastf1.get_session(self.YEAR, circuit, session_type)
             session.load()
-            print(f"  ✅ Loaded {self.YEAR} session successfully!")
+            print(f"  [OK] Loaded {self.YEAR} session successfully!")
             return session
         except Exception as e2025:
-            print(f"  ⚠️  2025 not available ({str(e2025)[:50]}...)")
+            print(f"  [WARN]  2025 not available ({str(e2025)[:50]}...)")
             
             # Fall back to 2024
             try:
-                print(f"  📡 Falling back to {self.FALLBACK_YEAR} {circuit}...")
+                print(f"  [FastF1] Falling back to {self.FALLBACK_YEAR} {circuit}...")
                 session = fastf1.get_session(self.FALLBACK_YEAR, circuit, session_type)
                 session.load()
-                print(f"  ✅ Loaded {self.FALLBACK_YEAR} session successfully!")
+                print(f"  [OK] Loaded {self.FALLBACK_YEAR} session successfully!")
                 return session
             except Exception as e2024:
-                print(f"  ❌ Both 2025 and 2024 failed: {e2024}")
+                print(f"  [FAIL] Both 2025 and 2024 failed: {e2024}")
                 return None
     
     def get_team_lap_telemetry(self, session, team_name: str):
@@ -140,7 +140,7 @@ class FastF1TelemetryLoader:
                 # Team name might not match exactly, this is expected for some teams
                 pass
             else:
-                print(f"  ⚠️  Error getting team telemetry for {team_name}: {error_msg[:100]}")
+                print(f"  [WARN]  Error getting team telemetry for {team_name}: {error_msg[:100]}")
             return None
     
     def analyze_corner_performance(self, telemetry_data: pd.DataFrame, corner_zones: List) -> Dict:
@@ -298,7 +298,7 @@ class FastF1TelemetryLoader:
             return corner_speeds
             
         except Exception as e:
-            print(f"  ⚠️  Error analyzing corners: {e}")
+            print(f"  [WARN]  Error analyzing corners: {e}")
             # Return None instead of fallback values to indicate error
             return None
     
@@ -320,16 +320,16 @@ class FastF1TelemetryLoader:
         
         # If qualifying fails, try race session
         if session is None:
-            print("  ⚠️  Qualifying session not available, trying Race session...")
+            print("  [WARN]  Qualifying session not available, trying Race session...")
             session = self.load_session(track_name, 'R')  # Race session
         
         if session is None:
-            print(f"  ❌ Could not load any session for {track_name}")
+            print(f"  [FAIL] Could not load any session for {track_name}")
             print(f"     → This track might not have FastF1 data available")
             return None
         
         # Log track-specific info
-        print(f"  ✅ Session loaded for {track_name}")
+        print(f"  [OK] Session loaded for {track_name}")
         print(f"     Event: {session.event['EventName'] if hasattr(session, 'event') else 'Unknown'}")
         print(f"     Year: {session.event.get('EventDate', 'Unknown').year if hasattr(session.event, 'get') else 'Unknown'}")
         
@@ -338,11 +338,11 @@ class FastF1TelemetryLoader:
         track_def = get_track_definition(track_name)
         
         if track_def is None:
-            print(f"  ❌ No track definition found for {track_name}")
+            print(f"  [FAIL] No track definition found for {track_name}")
             return None
             
         corner_zones = track_def['corner_zones']
-        print(f"  📊 Analyzing {len(corner_zones)} corner zones for {track_name}")
+        print(f"  [DATA] Analyzing {len(corner_zones)} corner zones for {track_name}")
         print(f"     Slow corners: {len([z for z in corner_zones if z.corner_type == 'slow'])}")
         print(f"     Medium corners: {len([z for z in corner_zones if z.corner_type == 'medium'])}")
         print(f"     Fast corners: {len([z for z in corner_zones if z.corner_type == 'fast'])}")
@@ -353,7 +353,7 @@ class FastF1TelemetryLoader:
         results = {}
         
         for team_display_name, team_fastf1_name in teams.items():
-            print(f"  📊 Analyzing {team_display_name}...")
+            print(f"  [DATA] Analyzing {team_display_name}...")
             
             # Try to get team telemetry
             team_data = self.get_team_lap_telemetry(session, team_fastf1_name)
@@ -391,31 +391,31 @@ class FastF1TelemetryLoader:
                                         'driver': fastest_lap['Driver']
                                     }
                     except Exception as e:
-                        print(f"    ⚠️  Error getting team data: {e}")
+                        print(f"    [WARN]  Error getting team data: {e}")
             
             if team_data is None:
-                print(f"    ⚠️  No telemetry data available for {team_display_name}")
+                print(f"    [WARN]  No telemetry data available for {team_display_name}")
                 continue
             
             telemetry = team_data['telemetry']
             
             # Validate telemetry has required columns
             if 'Speed' not in telemetry.columns or 'Distance' not in telemetry.columns:
-                print(f"    ⚠️  Telemetry missing required columns for {team_display_name}")
+                print(f"    [WARN]  Telemetry missing required columns for {team_display_name}")
                 continue
             
             # Analyze corner performance from REAL telemetry
             corner_speeds = self.analyze_corner_performance(telemetry, corner_zones)
             
             if corner_speeds is None:
-                print(f"    ⚠️  Failed to analyze corner performance for {team_display_name}")
+                print(f"    [WARN]  Failed to analyze corner performance for {team_display_name}")
                 continue
             
             # Check we have valid data for all corner types
             valid_corner_types = [ct for ct in ['slow', 'medium', 'fast'] if corner_speeds.get(ct) is not None and corner_speeds.get(ct) > 0]
             
             if len(valid_corner_types) < 2:
-                print(f"    ⚠️  Insufficient corner data for {team_display_name} (only {len(valid_corner_types)} corner types)")
+                print(f"    [WARN]  Insufficient corner data for {team_display_name} (only {len(valid_corner_types)} corner types)")
                 continue
             
             # Use real data where available, fill missing with calculated estimates if needed
@@ -431,24 +431,24 @@ class FastF1TelemetryLoader:
                         # Use average ideal speed from track definition as estimate
                         avg_ideal = np.mean([z.ideal_speed for z in corner_zones_for_type])
                         final_corner_speeds[ct] = float(avg_ideal)
-                        print(f"    📊 {ct.capitalize()} estimated from track definition: {avg_ideal:.1f} km/h")
+                        print(f"    [DATA] {ct.capitalize()} estimated from track definition: {avg_ideal:.1f} km/h")
             
             if len(final_corner_speeds) == 3:
                 results[team_display_name] = final_corner_speeds
                 
-                print(f"    ✅ {team_display_name} on {track_name}:")
+                print(f"    [OK] {team_display_name} on {track_name}:")
                 print(f"       Slow: {final_corner_speeds['slow']:.1f} km/h (track-specific)")
                 print(f"       Medium: {final_corner_speeds['medium']:.1f} km/h (track-specific)")
                 print(f"       Fast: {final_corner_speeds['fast']:.1f} km/h (track-specific)")
             else:
-                print(f"    ⚠️  Incomplete corner data for {team_display_name} (missing {3 - len(final_corner_speeds)} types)")
+                print(f"    [WARN]  Incomplete corner data for {team_display_name} (missing {3 - len(final_corner_speeds)} types)")
         
         if len(results) == 0:
-            print(f"  ❌ No valid data retrieved for any team on {track_name}")
+            print(f"  [FAIL] No valid data retrieved for any team on {track_name}")
             print(f"     This track might need Fallback to physics calculations")
             return None
             
-        print(f"\n  ✅ Successfully fetched TRACK-SPECIFIC data for {len(results)}/{len(teams)} teams on {track_name}")
+        print(f"\n  [OK] Successfully fetched TRACK-SPECIFIC data for {len(results)}/{len(teams)} teams on {track_name}")
         print(f"     Each team's speeds are unique to this track's characteristics")
         
         # Log speed variance to show track-specific differences
@@ -456,7 +456,7 @@ class FastF1TelemetryLoader:
             slow_values = [results[t]['slow'] for t in results]
             medium_values = [results[t]['medium'] for t in results]
             fast_values = [results[t]['fast'] for t in results]
-            print(f"\n  📊 {track_name} Speed Ranges:")
+            print(f"\n  [DATA] {track_name} Speed Ranges:")
             print(f"     Slow: {min(slow_values):.1f} - {max(slow_values):.1f} km/h (range: {max(slow_values)-min(slow_values):.1f})")
             print(f"     Medium: {min(medium_values):.1f} - {max(medium_values):.1f} km/h (range: {max(medium_values)-min(medium_values):.1f})")
             print(f"     Fast: {min(fast_values):.1f} - {max(fast_values):.1f} km/h (range: {max(fast_values)-min(fast_values):.1f})")
@@ -494,7 +494,7 @@ class FastF1TelemetryLoader:
             return sectors
             
         except Exception as e:
-            print(f"  ⚠️  Error in sector analysis: {e}")
+            print(f"  [WARN]  Error in sector analysis: {e}")
             return {}
     
     def get_speed_trace(self, telemetry_data: pd.DataFrame, num_points: int = 100) -> List[Dict]:
@@ -519,7 +519,7 @@ class FastF1TelemetryLoader:
             return trace
             
         except Exception as e:
-            print(f"  ⚠️  Error getting speed trace: {e}")
+            print(f"  [WARN]  Error getting speed trace: {e}")
             return []
 
 

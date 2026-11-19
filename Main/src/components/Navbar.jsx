@@ -3,27 +3,33 @@ import AuthButton from './AuthButton';
 import './Navbar.css';
 
 const Navbar = () => {
-  console.log('📍 Navbar component rendering...');
-  
   const location = useLocation();
-
   const isActive = (path) => location.pathname === path;
 
   const navLinks = [
     { path: '/', label: 'Home' },
     { path: '/dashboard', label: 'Dashboard' },
-    { path: '/simulate', label: 'Simulate' },
-    { path: '/compare', label: 'Compare' },
-    { path: '/quiz', label: 'Quiz' },
-    { path: '/regulations-2026', label: '2026 Regs' },
+    { path: '/simulate', label: 'Telemetry & Sim' },
+    { path: '/regulations-2026', label: '2026 Regulations' },
   ];
 
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        <Link to="/" className="navbar-logo">
+        <Link to="/" className="navbar-logo" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="logo-text">AERO</span>
           <span className="logo-accent">VELOCITY</span>
+          <span style={{
+            fontSize: '10px',
+            fontWeight: 800,
+            padding: '2px 7px',
+            background: 'linear-gradient(135deg, #00d4ff, #8b5cf6)',
+            color: '#000',
+            borderRadius: '4px',
+            letterSpacing: '0.05em'
+          }}>
+            2026 FIA
+          </span>
         </Link>
         
         <div className="navbar-right">
@@ -47,4 +53,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-
